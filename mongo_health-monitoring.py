@@ -4,7 +4,7 @@
 # if no PRIMARY node is detected.
 #
 #
-# python mongo-health.monitor.py --logpath /var/log/mongo-monitor.log \
+#python mongo-health.monitor.py --logpath /var/log/mongo-monitor.log \
 #--mongodb mongodb://server1:27000,server2:27000,server3:27000/?replicaSet=prod \
 #--action '{"action":"runScript", "script" : "/opt/failover.js" }'
 #
@@ -109,21 +109,19 @@ class App():
             # find nodes: master and current node (ourself)
             for member in rs_status.get('members'):
                 member_detail =  member['name'] +  ": " + member['stateStr']
-                self.logger.info("%s" % member_detail)
+                if member['stateStr'].find('not reachable/healthy') != -1:
+                    self.logger.info("%s" % member_detail)
                 if member.get('self'):
                     current = member
                     if int(member.get('state')) == 1:
                         primary = member
             self.logger.debug("%s" % rs_status)
-            #if rs_status['myState']==2:
             p = [m for m in rs_status['members'] if m['stateStr']=='PRIMARY']
-#            self.logger.debug("%s" % p)
             if not len(p)==1:
-                self.logger.info("NOT HEALTHY no PRIMARY found")
+                self.logger.error("\033[1;41mNOT HEALTHY no PRIMARY found\033[1;m")
+
                 return False
             else:
-#                print (json.dumps(p[0], default = jsonconverter))
-#                self.logger.info("HEALTHY Replica Set PRIMARY=%s" % json.dumps(p[0], default = jsonconverter))
                 self.logger.info("HEALTHY Replica Set PRIMARY")
 
                 return True
@@ -165,6 +163,9 @@ $python mongo-health.monitor.py --logpath /var/log/mongo-monitor.log \
 	print('mongo-health-monitor version: %s' % __version__ )
         os._exit(0)
     logger = logging.getLogger("mongo-health-monitor")
+
+
+
     logger.setLevel(getattr(logging,args.loglevel.upper()))
     formatter = logging.Formatter("%(asctime)s -  %(levelname)s - %(message)s")
     if args.logfile == '--':
@@ -173,9 +174,6 @@ $python mongo-health.monitor.py --logpath /var/log/mongo-monitor.log \
         handler = logging.FileHandler(os.path.abspath(args.logfile))
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    #logger.info(description)
-    #logger.info('version: %s' % __version__)
-    #logger.debug("args: " + str(args))
     logger.info("log level set to " + logging.getLevelName(logger.getEffectiveLevel()))
     required_args = [ 'mongodb', 'action' ]
     missing_args = []
@@ -189,9 +187,7 @@ $python mongo-health.monitor.py --logpath /var/log/mongo-monitor.log \
     app = App(args, logger)
     logger.info('mongo-monitor initialized')
     try:
-        #logger.info('running...')
         result = app.invoke()
-#        logger.info('mongo-monitor done')
         os._exit(0)
     except Exception as exp:
         logger.error(exp)
